@@ -45,6 +45,14 @@
     .icon {
         font-size: 5em;
         margin-bottom: 20px;
+        cursor: pointer;
+    }
+    .icon-btn {
+        border: none;
+        background: none;
+        color: white;
+        font-size: inherit;
+        cursor: pointer;
     }
     </style>
 </head>
@@ -53,7 +61,9 @@
     <video id="video" autoplay playsinline></video>
     <div id="card">
         <div id="content">
-            <div class="icon">✔️</div>
+            <button id="icon-btn" class="icon-btn">
+                <div class="icon">✔️</div>
+            </button>
             <p id="details"></p>
         </div>
     </div>
@@ -65,6 +75,9 @@
         const canvasContext = canvasElement.getContext('2d');
         const cardElement = document.getElementById('card');
         const detailsElement = document.getElementById('details');
+        const iconButton = document.getElementById('icon-btn');
+
+        let successMode = false; // Flag to track success or failure mode
 
         // Function to start the camera stream using the back camera
         function startCamera() {
@@ -83,17 +96,24 @@
             });
         }
 
-        // Function to display the result card and hide it after 5 seconds
+        // Function to display the result card
         function showCard(content, success) {
             cardElement.style.display = 'flex';
-            cardElement.style.backgroundColor = success ? 'green' : 'red';
-            document.querySelector('.icon').textContent = success ? '✔️' : '❌';
+            successMode = success;
+            if (success) {
+                cardElement.style.backgroundColor = 'green';
+                document.querySelector('.icon').textContent = '✔️';
+                iconButton.style.display = 'block'; // Show checkmark button
+            } else {
+                cardElement.style.backgroundColor = 'red';
+                document.querySelector('.icon').textContent = '❌';
+                iconButton.style.display = 'none'; // Hide checkmark button
+                setTimeout(() => {
+                    cardElement.style.display = 'none';
+                    requestAnimationFrame(scanQRCode); // Go back to scanning after 5 seconds
+                }, 5000); // Auto-hide for error
+            }
             detailsElement.innerHTML = content;
-
-            setTimeout(() => {
-                cardElement.style.display = 'none';
-                requestAnimationFrame(scanQRCode); // Go back to scanning after 5 seconds
-            }, 5000);
         }
 
         // Function to scan the QR code from the video stream
@@ -141,6 +161,14 @@
                 requestAnimationFrame(scanQRCode); // Wait until video is ready
             }
         }
+
+        // Event listener for the checkmark button to hide the success card
+        iconButton.addEventListener('click', () => {
+            if (successMode) {
+                cardElement.style.display = 'none';
+                requestAnimationFrame(scanQRCode); // Resume scanning
+            }
+        });
 
         // Start the camera when the page loads
         window.onload = startCamera;
