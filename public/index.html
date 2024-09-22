@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QR Code Scanner with jsQR</title>
+    <title>QR Code Scanner with Feedback</title>
     <style>
     body {
         font-family: Arial, sans-serif;
@@ -22,104 +22,128 @@
         border: 2px solid #333;
         background-color: #000;
     }
-    #output {
-        margin-top: 20px;
-        font-size: 1.2em;
-        color: green;
-    }
-    canvas {
-        display: none; /* Hide the canvas */
-    }
-    .button {
-        background-color: #28a745;
+    #card {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: none;
+        justify-content: center;
+        align-items: center;
         color: white;
-        padding: 10px 20px;
-        margin: 20px 0;
-        border: none;
-        border-radius: 5px;
-        cursor: pointer;
+        font-size: 2em;
+        text-align: center;
+        transition: opacity 0.5s ease-in-out;
+    }
+    #success-card {
+        background-color: green;
+    }
+    #error-card {
+        background-color: red;
+    }
+    .icon {
+        font-size: 5em;
+        margin-bottom: 20px;
     }
     </style>
 </head>
 <body>
-  <h1>Scan Registrant QR Code</h1>
-  <video id="video" autoplay playsinline></video>
-  <canvas id="canvas"></canvas>
-  <div id="output"></div>
-  <button id="check-in-btn" style="display:none;">Check In</button>
-  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-  <script>
-    const videoElement = document.getElementById('video');
-    const canvasElement = document.getElementById('canvas');
-    const canvasContext = canvasElement.getContext('2d');
-    const outputElement = document.getElementById('output');
-    const checkInBtn = document.getElementById('check-in-btn');
+    <h1>QR Code Scanner</h1>
+    <video id="video" autoplay playsinline></video>
+    <div id="card">
+        <div id="content">
+            <div class="icon">✔️</div>
+            <p id="details"></p>
+        </div>
+    </div>
 
-    // Function to start the camera stream using the back camera
-    function startCamera() {
-      navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { exact: "environment" } }
-      })
-      .then(stream => {
-        videoElement.srcObject = stream;
-        videoElement.onloadedmetadata = () => {
-          requestAnimationFrame(scanQRCode); // Start scanning only after video metadata is loaded
-        };
-      })
-      .catch(error => {
-        console.error('Error accessing the environment camera:', error);
-        alert('Unable to access the environment camera. Make sure you have granted camera permissions.');
-      });
-    }
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+    <script>
+        const videoElement = document.getElementById('video');
+        const canvasElement = document.createElement('canvas'); // Hidden canvas
+        const canvasContext = canvasElement.getContext('2d');
+        const cardElement = document.getElementById('card');
+        const detailsElement = document.getElementById('details');
 
-    // Function to scan the QR code from the video stream
-    function scanQRCode() {
-      if (videoElement.videoWidth && videoElement.videoHeight) {
-        // Draw the video frame to the canvas
-        canvasElement.width = videoElement.videoWidth;
-        canvasElement.height = videoElement.videoHeight;
-        canvasContext.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
-
-        const imageData = canvasContext.getImageData(0, 0, canvasElement.width, canvasElement.height);
-        const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
-
-        if (code) {
-          console.log("QR Code detected!", code);  // Debugging: log detected QR code
-          outputElement.textContent = `Scanned Content: ${code.data}`;
-          checkInBtn.style.display = 'block';
-
-          const [registrationNumber, email] = code.data.split(':');
-
-          // Make your fetch call to verify registration
-          fetch('/checkin', {
-              method: 'POST',
-              headers: {
-                  'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({ registrationNumber, email })
-          })
-          .then(response => response.json())
-          .then(data => {
-              if (data.success) {
-                  outputElement.textContent = `Registrant: ${data.registrant.name} - Time Slot: ${data.registrant.timeSlot}`;
-              } else {
-                  outputElement.textContent = 'Registrant not found!';
-              }
-          })
-          .catch(error => {
-              outputElement.textContent = 'Error processing the QR code.';
-              console.error('Error:', error);
-          });
-        } else {
-          console.log("No QR Code detected in this frame.");  // Debugging: log no detection
+        // Function to start the camera stream using the back camera
+        function startCamera() {
+            navigator.mediaDevices.getUserMedia({
+                video: { facingMode: { exact: "environment" } }
+            })
+            .then(stream => {
+                videoElement.srcObject = stream;
+                videoElement.onloadedmetadata = () => {
+                    requestAnimationFrame(scanQRCode); // Start scanning only after video metadata is loaded
+                };
+            })
+            .catch(error => {
+                console.error('Error accessing the environment camera:', error);
+                alert('Unable to access the environment camera. Make sure you have granted camera permissions.');
+            });
         }
-      }
 
-      requestAnimationFrame(scanQRCode); // Continuously scan for QR codes
-    }
+        // Function to display the result card and hide it after 5 seconds
+        function showCard(content, success) {
+            cardElement.style.display = 'flex';
+            cardElement.style.backgroundColor = success ? 'green' : 'red';
+            document.querySelector('.icon').textContent = success ? '✔️' : '❌';
+            detailsElement.innerHTML = content;
 
-    // Start the camera when the page loads
-    window.onload = startCamera;
-  </script
+            setTimeout(() => {
+                cardElement.style.display = 'none';
+                requestAnimationFrame(scanQRCode); // Go back to scanning after 5 seconds
+            }, 5000);
+        }
+
+        // Function to scan the QR code from the video stream
+        function scanQRCode() {
+            if (videoElement.videoWidth && videoElement.videoHeight) {
+                canvasElement.width = videoElement.videoWidth;
+                canvasElement.height = videoElement.videoHeight;
+                canvasContext.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+
+                const imageData = canvasContext.getImageData(0, 0, canvasElement.width, canvasElement.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
+
+                if (code) {
+                    const [registrationNumber, email] = code.data.split(':');
+
+                    // Make a fetch request to your server to verify registration
+                    fetch('/checkin', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ registrationNumber, email })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            const registrantInfo = `
+                                Name: ${data.registrant.name} <br>
+                                Number of People: ${data.registrant.name.split(', ').length} <br>
+                                Time Slot: ${data.registrant.timeSlot}
+                            `;
+                            showCard(registrantInfo, true); // Show success card
+                        } else {
+                            showCard('Registrant not found!', false); // Show error card
+                        }
+                    })
+                    .catch(error => {
+                        showCard('Error processing the QR code.', false); // Show error card
+                        console.error('Error:', error);
+                    });
+                } else {
+                    requestAnimationFrame(scanQRCode); // Continue scanning
+                }
+            } else {
+                requestAnimationFrame(scanQRCode); // Wait until video is ready
+            }
+        }
+
+        // Start the camera when the page loads
+        window.onload = startCamera;
+    </script>
 </body>
 </html>
