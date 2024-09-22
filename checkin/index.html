@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code Scanner</title>
+    <script type="text/javascript" src="/js/instascan.min.js"></script>
+    <style>
+    body {
+        font-family: Arial, sans-serif;
+        text-align: center;
+        background-color: #f5f5f5;
+        margin: 0;
+        padding: 0;
+    }
+    h1 {
+        color: #333;
+    }
+    #scanner-container {
+        margin-top: 20px;
+    }
+    #video {
+        width: 100%;
+        max-width: 600px;
+        height: auto;
+        border: 2px solid #333;
+        background-color: #000;
+    }
+    #output {
+        margin-top: 20px;
+        font-size: 1.2em;
+        color: green;
+    }
+    .button {
+        background-color: #28a745;
+        color: white;
+        padding: 10px 20px;
+        margin: 20px 0;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+</style>
+</head>
+<body>
+  <h1>Scan Registrant QR Code</h1>
+  <video id="video" style="width:500px;"></video>
+  <div id="output"></div>
+  <button id="check-in-btn" style="display:none;">Check In</button>
+
+  <script>
+  const videoElement = document.getElementById('video');
+const outputElement = document.getElementById('output');
+const checkInBtn = document.getElementById('check-in-btn');
+
+const scanner = new Instascan.Scanner({ video: videoElement });
+scanner.addListener('scan', function(content) {
+    outputElement.textContent = `Scanned Content: ${content}`;
+    checkInBtn.style.display = 'block';
+
+    const [registrationNumber, email] = content.split(':');
+
+    fetch('/checkin', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ registrationNumber, email })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            outputElement.textContent = `Registrant: ${data.registrant.name} - Time Slot: ${data.registrant.timeSlot}`;
+        } else {
+            outputElement.textContent = 'Registrant not found!';
+        }
+    })
+    .catch(error => {
+        outputElement.textContent = 'Error processing the QR code.';
+        console.error('Error:', error);
+    });
+});
+
+function startScanner(cameras) {
+    if (cameras.length > 0) {
+        const backCamera = cameras.find(camera => camera.name.toLowerCase().includes('back')) || cameras[0];
+        scanner.start(backCamera).then(() => {
+            console.log('Using back camera');
+            videoElement.srcObject = scanner._stream;
+        }).catch((err) => {
+            console.error('Back camera failed:', err);
+        });
+    } else {
+        alert('No cameras found.');
+    }
+}
+
+Instascan.Camera.getCameras().then(startScanner).catch(function(e) {
+    console.error('Error with camera:', e);
+});
+  </script>
+</body>
+</html>

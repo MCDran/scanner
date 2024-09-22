@@ -1,0 +1,13 @@
+{
+  "name": "qr-code-scanner",
+  "version": "1.0.0",
+  "description": "QR code scanner for haunted house project",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.17.1",
+    "jsqr": "^1.4.0"
+  }
+}
