@@ -5,20 +5,13 @@ const path = require('path');
 const app = express();
 
 // MySQL connection setup
-const connection = mysql.createConnection({
+const pool = mysql.createPool({
     host: '100.87.150.78',
     port: '3667',
     user: 'valak',
     password: 'SLEEP4tG',
-    database: 'MYSQL_DATABASE'
-});
-
-connection.connect((err) => {
-    if (err) {
-        console.error('Error connecting to MySQL:', err.stack);
-        return;
-    }
-    console.log('Connected to MySQL');
+    database: 'MYSQL_DATABASE',
+    connectionLimit: 10
 });
 
 app.use(bodyParser.urlencoded({ extended: true }));
