@@ -14,6 +14,15 @@ const pool = mysql.createPool({
     connectionLimit: 10
 });
 
+pool.getConnection((err, connection) => {
+    if (err) {
+        console.error('Error connecting to SQL pool:', err.stack);
+        return;
+    }
+    console.log('Connected to SQL pool');
+    connection.release(); // Release connection back to the pool
+});
+
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static('public'));
 app.use(express.json());
@@ -29,7 +38,7 @@ app.post('/checkin', (req, res) => {
 
     // Query to verify registration from MySQL
     const sql = 'SELECT * FROM registrations WHERE registration_number = ? AND email = ?';
-    connection.query(sql, [registrationNumber, email], (err, results) => {
+    pool.query(sql, [registrationNumber, email], (err, results) => {
         if (err || results.length === 0) {
             return res.status(404).json({
                 success: false,
