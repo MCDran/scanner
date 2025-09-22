@@ -79,21 +79,97 @@
 
         let successMode = false; // Flag to track success or failure mode
 
-        // Function to start the camera stream using the back camera
-        function startCamera() {
-            navigator.mediaDevices.getUserMedia({
-                video: { facingMode: { exact: "environment" } }
-            })
-            .then(stream => {
+        // Function to start the camera stream with fallback options
+        async function startCamera() {
+            try {
+                // First, check if camera permissions are available
+                const permissions = await navigator.permissions.query({ name: 'camera' });
+                console.log('Camera permission status:', permissions.state);
+                
+                // Try different camera configurations in order of preference
+                const cameraConfigs = [
+                    // Try back camera first (mobile devices)
+                    { video: { facingMode: { exact: "environment" } } },
+                    // Fallback to preferred back camera (less strict)
+                    { video: { facingMode: "environment" } },
+                    // Fallback to any camera with high resolution
+                    { video: { width: { ideal: 1280 }, height: { ideal: 720 } } },
+                    // Final fallback to any available camera
+                    { video: true }
+                ];
+
+                let stream = null;
+                let lastError = null;
+
+                for (const config of cameraConfigs) {
+                    try {
+                        console.log('Trying camera config:', config);
+                        stream = await navigator.mediaDevices.getUserMedia(config);
+                        break; // Success - exit loop
+                    } catch (error) {
+                        console.warn('Camera config failed:', config, error);
+                        lastError = error;
+                        continue; // Try next config
+                    }
+                }
+
+                if (!stream) {
+                    throw lastError || new Error('No camera configuration worked');
+                }
+
+                // Successfully got camera stream
                 videoElement.srcObject = stream;
                 videoElement.onloadedmetadata = () => {
-                    requestAnimationFrame(scanQRCode); // Start scanning only after video metadata is loaded
+                    console.log('Video metadata loaded, starting QR scanning');
+                    requestAnimationFrame(scanQRCode);
                 };
-            })
-            .catch(error => {
-                console.error('Error accessing the environment camera:', error);
-                alert('Unable to access the environment camera. Make sure you have granted camera permissions.');
-            });
+
+                // Add stream error handling
+                stream.getTracks().forEach(track => {
+                    track.onended = () => {
+                        console.log('Camera track ended');
+                        showCameraError('Camera connection lost. Please refresh the page.');
+                    };
+                });
+
+            } catch (error) {
+                console.error('Camera access failed:', error);
+                showCameraError(error);
+            }
+        }
+
+        // Function to show camera error messages
+        function showCameraError(error) {
+            let message = 'Camera access failed. ';
+            
+            if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+                message += 'Please allow camera access in your browser settings and refresh the page.';
+                
+                // For Chrome/Edge on Windows, provide specific instructions
+                if (navigator.userAgent.includes('Chrome') || navigator.userAgent.includes('Edge')) {
+                    message += '<br><br>For Chrome/Edge:<br>1. Click the camera icon in the address bar<br>2. Select "Always allow"<br>3. Refresh this page';
+                }
+            } else if (error.name === 'NotFoundError') {
+                message += 'No camera found on this device.';
+            } else if (error.name === 'NotReadableError') {
+                message += 'Camera is being used by another application.';
+            } else {
+                message += `Error: ${error.message || error}`;
+            }
+
+            // Show error in the video area
+            videoElement.style.display = 'none';
+            const errorDiv = document.createElement('div');
+            errorDiv.innerHTML = `
+                <div style="padding: 20px; background: #ffebee; border: 2px solid #f44336; border-radius: 8px; margin: 20px;">
+                    <h3 style="color: #d32f2f; margin-top: 0;">Camera Access Required</h3>
+                    <p style="color: #666;">${message}</p>
+                    <button onclick="location.reload()" style="background: #2196f3; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer;">
+                        Try Again
+                    </button>
+                </div>
+            `;
+            videoElement.parentNode.insertBefore(errorDiv, videoElement.nextSibling);
         }
 
         // Function to display the result card
@@ -170,8 +246,45 @@
             }
         });
 
-        // Start the camera when the page loads
-        window.onload = startCamera;
+        // Start the camera when the page loads with user interaction
+        window.onload = () => {
+            // Check if we're on HTTPS or localhost (required for camera access)
+            if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+                showCameraError('Camera access requires HTTPS or localhost. Please use HTTPS or access via localhost.');
+                return;
+            }
+
+            // Check if getUserMedia is supported
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                showCameraError('Your browser does not support camera access. Please use a modern browser like Chrome, Firefox, or Safari.');
+                return;
+            }
+
+            // Show a permission request button instead of immediately requesting camera
+            const permissionButton = document.createElement('button');
+            permissionButton.innerHTML = '📸 Enable Camera for QR Scanning';
+            permissionButton.style.cssText = `
+                background: #4CAF50; 
+                color: white; 
+                border: none; 
+                padding: 15px 30px; 
+                font-size: 18px; 
+                border-radius: 8px; 
+                cursor: pointer; 
+                margin: 20px;
+                box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            `;
+            
+            permissionButton.onmouseover = () => permissionButton.style.background = '#45a049';
+            permissionButton.onmouseout = () => permissionButton.style.background = '#4CAF50';
+            
+            permissionButton.onclick = () => {
+                permissionButton.remove();
+                startCamera();
+            };
+            
+            videoElement.parentNode.insertBefore(permissionButton, videoElement);
+        };
     </script>
 </body>
 </html>
